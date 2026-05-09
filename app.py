@@ -1,13 +1,20 @@
 import os
 import sqlite3
 from datetime import datetime
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException, Depends
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="IFS Assistant Backend (MVP)")
 
 MONTHLY_LIMIT = int(os.getenv("MONTHLY_MESSAGE_LIMIT_FREE", "120"))
 DB_PATH = os.getenv("DB_PATH", "app.db")
+API_SECRET = os.getenv("API_SECRET")
+
+def verify_api_key(x_api_key: str | None = Header(default=None)):
+    if not API_SECRET:
+        raise HTTPException(status_code=500, detail="API_SECRET is not configured")
+    if x_api_key != API_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid API key")
 
 LIMIT_MESSAGE = (
     "Ai ajuns la limita de mesaje disponibile pentru această perioadă. "
@@ -82,7 +89,7 @@ def mock_ifs_reply(user_text: str) -> str:
 def health():
     return {"ok": True}
 
-@app.get("/usage")
+@app.get("/usage", dependencies=[Depends(verify_api_key)])
 def usage(device_id: str):
     m = month_key()
     used = get_used(device_id, m)
@@ -94,7 +101,7 @@ def usage(device_id: str):
         "remaining": max(0, MONTHLY_LIMIT - used)
     }
 
-@app.post("/chat", response_model=ChatOut)
+@app.post("/chat", response_model=ChatOut, dependencies=[Depends(verify_api_key)])
 def chat(payload: ChatIn):
     m = month_key()
     used = get_used(payload.device_id, m)
