@@ -1,5 +1,5 @@
 import os
-import sqlite3
+import psycopg2
 from datetime import datetime
 from fastapi import FastAPI, Header, HTTPException, Depends
 from pydantic import BaseModel, Field
@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 app = FastAPI(title="IFS Assistant Backend (MVP)")
 
 MONTHLY_LIMIT = int(os.getenv("MONTHLY_MESSAGE_LIMIT_FREE", "120"))
-DB_PATH = os.getenv("DB_PATH", "app.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
 API_SECRET = os.getenv("API_SECRET")
 
 def verify_api_key(x_api_key: str | None = Header(default=None)):
@@ -22,38 +22,54 @@ LIMIT_MESSAGE = (
 )
 
 def init_db():
-    with sqlite3.connect(DB_PATH) as con:
-        con.execute("""
-        CREATE TABLE IF NOT EXISTS usage (
-            device_id TEXT NOT NULL,
-            month TEXT NOT NULL,
-            messages_used INTEGER NOT NULL,
-            PRIMARY KEY (device_id, month)
-        )
-        """)
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS usage (
+                device_id TEXT NOT NULL,
+                month TEXT NOT NULL,
+                messages_used INTEGER NOT NULL,
+                PRIMARY KEY (device_id, month)
+            )
+            """)
         con.commit()
+
 
 def month_key(dt: datetime | None = None) -> str:
     dt = dt or datetime.utcnow()
     return dt.strftime("%Y-%m")
 
+def get_connection():
+    if not DATABASE_URL:
+        raise Exception("DATABASE_URL is not configured")
+
+    return psycopg2.connect(DATABASE_URL)
+
+
 def get_used(device_id: str, month: str) -> int:
-    with sqlite3.connect(DB_PATH) as con:
-        row = con.execute(
-            "SELECT messages_used FROM usage WHERE device_id=? AND month=?",
-            (device_id, month)
-        ).fetchone()
-        return int(row[0]) if row else 0
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute(
+                "SELECT messages_used FROM usage WHERE device_id=%s AND month=%s",
+                (device_id, month)
+            )
+
+            row = cur.fetchone()
+            return int(row[0]) if row else 0
+
 
 def inc_used(device_id: str, month: str, delta: int = 1) -> int:
-    with sqlite3.connect(DB_PATH) as con:
-        cur = con.execute(
-            "INSERT INTO usage(device_id, month, messages_used) VALUES(?,?,?) "
-            "ON CONFLICT(device_id, month) DO UPDATE SET messages_used = messages_used + ? "
-            "RETURNING messages_used",
-            (device_id, month, delta, delta)
-        )
-        new_val = cur.fetchone()[0]
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute("""
+                INSERT INTO usage(device_id, month, messages_used)
+                VALUES(%s, %s, %s)
+                ON CONFLICT(device_id, month)
+                DO UPDATE SET messages_used = usage.messages_used + %s
+                RETURNING messages_used
+            """, (device_id, month, delta, delta))
+
+            new_val = cur.fetchone()[0]
         con.commit()
         return int(new_val)
 
