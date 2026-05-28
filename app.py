@@ -1,10 +1,13 @@
 import os
 import psycopg2
+import logging
 from datetime import datetime
 from fastapi import FastAPI, Header, HTTPException, Depends
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="IFS Assistant Backend (MVP)")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("ifs-backend")
 
 MONTHLY_LIMIT = int(os.getenv("MONTHLY_MESSAGE_LIMIT_FREE", "120"))
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -104,6 +107,14 @@ def mock_ifs_reply(user_text: str) -> str:
 @app.get("/health")
 def health():
     return {"ok": True}
+@app.get("/version")
+def version():
+    return {
+        "app": "IFS Assistant Backend",
+        "version": "0.1.0",
+        "database": "postgresql",
+        "ai": "mock"
+    }
 
 @app.get("/usage", dependencies=[Depends(verify_api_key)])
 def usage(device_id: str):
@@ -119,12 +130,15 @@ def usage(device_id: str):
 
 @app.post("/chat", response_model=ChatOut, dependencies=[Depends(verify_api_key)])
 def chat(payload: ChatIn):
+    logger.info(f"Chat request received | device_id={payload.device_id}")
     m = month_key()
     used = get_used(payload.device_id, m)
 
     if used >= MONTHLY_LIMIT:
+        logger.warning(f"Monthly limit reached | device_id={payload.device_id} | used={used}")
         return ChatOut(blocked=True, messages_used=used, limit=MONTHLY_LIMIT, reply=LIMIT_MESSAGE)
 
     new_used = inc_used(payload.device_id, m, 1)
+    logger.info(f"Message counted | device_id={payload.device_id} | messages_used={new_used}")
     reply = mock_ifs_reply(payload.text)
     return ChatOut(blocked=False, messages_used=new_used, limit=MONTHLY_LIMIT, reply=reply)
