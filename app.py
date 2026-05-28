@@ -116,6 +116,25 @@ def version():
         "ai": "mock"
     }
 
+@app.get("/db-check", dependencies=[Depends(verify_api_key)])
+def db_check():
+    try:
+        with get_connection() as con:
+            with con.cursor() as cur:
+                cur.execute("SELECT 1")
+                result = cur.fetchone()
+
+        logger.info("Database health check successful")
+        return {
+            "database": "postgresql",
+            "connected": True,
+            "result": result[0]
+        }
+
+    except Exception as e:
+        logger.error(f"Database health check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Database connection failed")
+
 @app.get("/usage", dependencies=[Depends(verify_api_key)])
 def usage(device_id: str):
     m = month_key()
