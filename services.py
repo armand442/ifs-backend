@@ -1,0 +1,100 @@
+from database import get_connection
+
+
+LIMIT_MESSAGE = (
+    "Ai ajuns la limita de mesaje disponibile pentru această perioadă. "
+    "Poți activa un plan extins pentru a continua sau poți nota ce apare și aduce în ședință."
+)
+
+
+def get_used(device_id: str, month: str) -> int:
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute(
+                "SELECT messages_used FROM usage WHERE device_id=%s AND month=%s",
+                (device_id, month)
+            )
+
+            row = cur.fetchone()
+            return int(row[0]) if row else 0
+
+
+def inc_used(device_id: str, month: str, delta: int = 1) -> int:
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute("""
+                INSERT INTO usage(device_id, month, messages_used)
+                VALUES(%s, %s, %s)
+                ON CONFLICT(device_id, month)
+                DO UPDATE SET messages_used = usage.messages_used + %s
+                RETURNING messages_used
+            """, (device_id, month, delta, delta))
+
+            new_val = cur.fetchone()[0]
+
+        con.commit()
+        return int(new_val)
+
+
+def save_chat_message(device_id: str, role: str, text: str):
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute("""
+                INSERT INTO chat_messages(device_id, role, text)
+                VALUES(%s, %s, %s)
+            """, (device_id, role, text))
+
+        con.commit()
+
+def get_recent_messages(device_id: str, limit: int = 20):
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute("""
+                SELECT role, text, created_at
+                FROM chat_messages
+                WHERE device_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+            """, (device_id, limit))
+
+            rows = cur.fetchall()
+
+    messages = [
+        {
+            "role": row[0],
+            "text": row[1],
+            "created_at": row[2].isoformat()
+        }
+        for row in rows
+    ]
+
+    return list(reversed(messages))
+
+
+def mock_ifs_reply(user_text: str) -> str:
+    t = user_text.lower()
+
+    if any(k in t for k in ["trebuie", "control", "perfec", "disciplin"]):
+        return (
+            "Parcă e activă o parte care vrea să controleze sau să te țină „pe linie”. "
+            "Cum e pentru tine să o observi ca pe o parte, nu ca pe tot tu? "
+            "Unde o simți în corp?"
+        )
+
+    if any(k in t for k in ["panic", "nu mai pot", "mă sufoc", "prea mult"]):
+        return (
+            "Sună ca o parte copleșită care vrea să scape repede de disconfort. "
+            "Putem încetini puțin: ce ar avea nevoie acum ca să se simtă cu 5% mai în siguranță?"
+        )
+
+    if any(k in t for k in ["vinovat", "rușine", "nu sunt bun", "inutil"]):
+        return (
+            "Aud rușine/vinovăție. Uneori apare și un critic care încearcă să prevină respingerea. "
+            "Dacă îi dai un nume acestei părți, cum ai numi-o? "
+            "Ce vrea să obțină pentru tine?"
+        )
+
+    return (
+        "Mulțumesc. Dacă privim prin lentila IFS: ce parte din tine e cea mai activă acum? "
+        "Ce încearcă ea să facă pentru tine, chiar dacă metoda ei nu e plăcută?"
+    )

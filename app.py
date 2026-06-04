@@ -5,13 +5,14 @@ from fastapi import FastAPI, Header, HTTPException, Depends
 
 from config import APP_NAME, APP_VERSION, AI_MODE, API_SECRET, MONTHLY_LIMIT
 from database import init_db, get_connection
-from schemas import ChatIn, ChatOut
+from schemas import ChatIn, ChatOut, MessageOut
 from services import (
     LIMIT_MESSAGE,
     get_used,
     inc_used,
     save_chat_message,
     mock_ifs_reply,
+get_recent_messages,
 )
 
 
@@ -86,6 +87,17 @@ def usage(device_id: str):
         "remaining": max(0, MONTHLY_LIMIT - used)
     }
 
+@app.get("/messages", response_model=list[MessageOut], dependencies=[Depends(verify_api_key)])
+def messages(device_id: str, limit: int = 20):
+    if limit < 1:
+        limit = 1
+
+    if limit > 50:
+        limit = 50
+
+    logger.info(f"Messages requested | device_id={device_id} | limit={limit}")
+
+    return get_recent_messages(device_id, limit)
 
 @app.post("/chat", response_model=ChatOut, dependencies=[Depends(verify_api_key)])
 def chat(payload: ChatIn):
