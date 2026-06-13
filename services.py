@@ -69,6 +69,28 @@ def get_recent_messages(device_id: str, limit: int = 20):
     ]
 
     return list(reversed(messages))
+def get_conversation_context(device_id: str, limit: int = 10):
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute("""
+                SELECT role, text
+                FROM chat_messages
+                WHERE device_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+            """, (device_id, limit))
+
+            rows = cur.fetchall()
+
+    messages = [
+        {
+            "role": row[0],
+            "text": row[1]
+        }
+        for row in reversed(rows)
+    ]
+
+    return messages
 
 
 def mock_ifs_reply(user_text: str) -> str:

@@ -12,9 +12,9 @@ from services import (
     inc_used,
     save_chat_message,
     mock_ifs_reply,
-get_recent_messages,
+    get_recent_messages,
+    get_conversation_context,
 )
-
 
 app = FastAPI(title=f"{APP_NAME} (MVP)")
 
@@ -105,6 +105,11 @@ def chat(payload: ChatIn):
 
     m = month_key()
     used = get_used(payload.device_id, m)
+    context = get_conversation_context(payload.device_id)
+
+     logger.info(
+        f"Context loaded | device_id={payload.device_id} | messages={len(context)}"
+    )
 
     if used >= MONTHLY_LIMIT:
         logger.warning(
