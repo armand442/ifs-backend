@@ -14,6 +14,7 @@ from services import (
     mock_ifs_reply,
     get_recent_messages,
     get_conversation_context,
+    delete_old_chat_messages,
 )
 
 app = FastAPI(title=f"{APP_NAME} (MVP)")
@@ -73,6 +74,23 @@ def db_check():
         logger.error(f"Database health check failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Database connection failed")
 
+@app.post("/cleanup/messages", dependencies=[Depends(verify_api_key)])
+def cleanup_messages(hours: int = 24):
+    if hours < 1:
+        hours = 1
+
+    if hours > 168:
+        hours = 168
+
+    deleted = delete_old_chat_messages(hours)
+
+    logger.info(f"Old messages cleanup completed | hours={hours} | deleted={deleted}")
+
+    return {
+        "cleanup": "chat_messages",
+        "older_than_hours": hours,
+        "deleted": deleted
+    }
 
 @app.get("/usage", dependencies=[Depends(verify_api_key)])
 def usage(device_id: str):
@@ -86,6 +104,7 @@ def usage(device_id: str):
         "limit": MONTHLY_LIMIT,
         "remaining": max(0, MONTHLY_LIMIT - used)
     }
+
 
 @app.get("/messages", response_model=list[MessageOut], dependencies=[Depends(verify_api_key)])
 def messages(device_id: str, limit: int = 20):

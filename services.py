@@ -120,3 +120,16 @@ def mock_ifs_reply(user_text: str) -> str:
         "Mulțumesc. Dacă privim prin lentila IFS: ce parte din tine e cea mai activă acum? "
         "Ce încearcă ea să facă pentru tine, chiar dacă metoda ei nu e plăcută?"
     )
+def delete_old_chat_messages(hours: int = 24) -> int:
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute("""
+                DELETE FROM chat_messages
+                WHERE created_at < NOW() - (%s || ' hours')::INTERVAL
+                RETURNING id
+            """, (hours,))
+
+            deleted_rows = cur.fetchall()
+
+        con.commit()
+        return len(deleted_rows)
