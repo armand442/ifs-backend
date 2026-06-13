@@ -107,7 +107,7 @@ def chat(payload: ChatIn):
     used = get_used(payload.device_id, m)
     context = get_conversation_context(payload.device_id)
 
-     logger.info(
+    logger.info(
         f"Context loaded | device_id={payload.device_id} | messages={len(context)}"
     )
 
