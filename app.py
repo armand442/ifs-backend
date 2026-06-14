@@ -16,6 +16,7 @@ from services import (
     get_conversation_context,
     delete_old_chat_messages,
 )
+
 from ai_service import generate_ai_reply
 
 app = FastAPI(title=f"{APP_NAME} (MVP)")
@@ -51,7 +52,7 @@ def version():
         "app": APP_NAME,
         "version": APP_VERSION,
         "database": "postgresql",
-        "ai": AI_MODE
+        "ai": "openai" if AI_ENABLED else AI_MODE
     }
 
 
