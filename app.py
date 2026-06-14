@@ -3,7 +3,7 @@ from datetime import datetime
 
 from fastapi import FastAPI, Header, HTTPException, Depends
 
-from config import APP_NAME, APP_VERSION, AI_MODE, API_SECRET, MONTHLY_LIMIT
+from config import APP_NAME, APP_VERSION, AI_MODE, API_SECRET, MONTHLY_LIMIT, AI_ENABLED
 from database import init_db, get_connection
 from schemas import ChatIn, ChatOut, MessageOut
 from services import (
@@ -16,6 +16,7 @@ from services import (
     get_conversation_context,
     delete_old_chat_messages,
 )
+from ai_service import generate_ai_reply
 
 app = FastAPI(title=f"{APP_NAME} (MVP)")
 
@@ -146,7 +147,17 @@ def chat(payload: ChatIn):
 
     save_chat_message(payload.device_id, "user", payload.text)
 
-    reply = mock_ifs_reply(payload.text)
+    if AI_ENABLED:
+        try:
+            reply = generate_ai_reply(context, payload.text)
+            logger.info(f"AI reply generated | device_id={payload.device_id}")
+
+        except Exception as e:
+            logger.error(f"AI generation failed | device_id={payload.device_id} | error={str(e)}")
+            reply = mock_ifs_reply(payload.text)
+
+    else:
+        reply = mock_ifs_reply(payload.text)
 
     save_chat_message(payload.device_id, "assistant", reply)
 
