@@ -132,4 +132,32 @@ def delete_old_chat_messages(hours: int = 24) -> int:
             deleted_rows = cur.fetchall()
 
         con.commit()
-        return len(deleted_rows)
+        return len(deleted_rows) 
+
+
+CRISIS_MESSAGE = (
+    "Îmi pare rău că treci prin asta. Dacă simți că ai putea să-ți faci rău "
+    "sau ești în pericol imediat, te rog sună acum la 112 sau mergi la cea mai apropiată cameră de gardă. "
+    "Dacă poți, spune unei persoane de încredere unde ești și că ai nevoie de ajutor chiar acum."
+)
+
+
+def detect_crisis_risk(text: str) -> bool:
+    t = text.lower()
+
+    crisis_keywords = [
+        "vreau să mor",
+        "vreau sa mor",
+        "mă omor",
+        "ma omor",
+        "sinucidere",
+        "suicid",
+        "nu mai vreau să trăiesc",
+        "nu mai vreau sa traiesc",
+        "îmi fac rău",
+        "imi fac rau",
+        "vreau să-mi fac rău",
+        "vreau sa-mi fac rau",
+    ]
+
+    return any(keyword in t for keyword in crisis_keywords)

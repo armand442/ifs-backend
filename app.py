@@ -15,6 +15,8 @@ from services import (
     get_recent_messages,
     get_conversation_context,
     delete_old_chat_messages,
+    CRISIS_MESSAGE,
+    detect_crisis_risk,
 )
 
 from ai_service import generate_ai_reply
@@ -147,6 +149,18 @@ def chat(payload: ChatIn):
     new_used = inc_used(payload.device_id, m, 1)
 
     save_chat_message(payload.device_id, "user", payload.text)
+    if detect_crisis_risk(payload.text):
+        reply = CRISIS_MESSAGE
+        save_chat_message(payload.device_id, "assistant", reply)
+
+        logger.warning(f"Crisis risk detected | device_id={payload.device_id}")
+
+        return ChatOut(
+            blocked=False,
+            messages_used=new_used,
+            limit=MONTHLY_LIMIT,
+            reply=reply
+        )
 
     if AI_ENABLED:
         try:
