@@ -17,6 +17,7 @@ from services import (
     delete_old_chat_messages,
     CRISIS_MESSAGE,
     detect_crisis_risk,
+    save_ai_usage_log,
 )
 
 from ai_service import generate_ai_reply
@@ -164,7 +165,34 @@ def chat(payload: ChatIn):
 
     if AI_ENABLED:
         try:
-            reply = generate_ai_reply(context, payload.text)
+            ai_result = generate_ai_reply(context, payload.text)
+            reply = ai_result.reply
+
+            try:
+                save_ai_usage_log(
+                    device_id=payload.device_id,
+                    model=ai_result.model,
+                    input_tokens=ai_result.input_tokens,
+                    output_tokens=ai_result.output_tokens,
+                    total_tokens=ai_result.total_tokens,
+                    input_cost_usd=ai_result.input_cost_usd,
+                    output_cost_usd=ai_result.output_cost_usd,
+                    total_cost_usd=ai_result.total_cost_usd,
+                    success=True,
+                    error_message=None
+                )
+
+                logger.info(
+                    f"AI usage logged | device_id={payload.device_id} | "
+                    f"tokens={ai_result.total_tokens} | cost_usd={ai_result.total_cost_usd:.8f}"
+                )
+
+            except Exception as log_error:
+                logger.error(
+                    f"AI usage logging failed | device_id={payload.device_id} | "
+                    f"error={str(log_error)}"
+                )
+
             logger.info(f"AI reply generated | device_id={payload.device_id}")
 
         except Exception as e:

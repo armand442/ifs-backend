@@ -46,6 +46,50 @@ def save_chat_message(device_id: str, role: str, text: str):
 
         con.commit()
 
+def save_ai_usage_log(
+    device_id: str,
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    total_tokens: int,
+    input_cost_usd: float,
+    output_cost_usd: float,
+    total_cost_usd: float,
+    success: bool = True,
+    error_message: str | None = None,
+):
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute("""
+                INSERT INTO ai_usage_logs(
+                    device_id,
+                    model,
+                    input_tokens,
+                    output_tokens,
+                    total_tokens,
+                    input_cost_usd,
+                    output_cost_usd,
+                    total_cost_usd,
+                    success,
+                    error_message
+                )
+                VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                device_id,
+                model,
+                input_tokens,
+                output_tokens,
+                total_tokens,
+                input_cost_usd,
+                output_cost_usd,
+                total_cost_usd,
+                success,
+                error_message
+            ))
+
+        con.commit()
+
+
 def get_recent_messages(device_id: str, limit: int = 20):
     with get_connection() as con:
         with con.cursor() as cur:

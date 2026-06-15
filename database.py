@@ -31,4 +31,27 @@ def init_db():
             )
             """)
 
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS ai_usage_logs (
+                id SERIAL PRIMARY KEY,
+
+                device_id TEXT NOT NULL,
+
+                model TEXT NOT NULL,
+
+                input_tokens INTEGER NOT NULL DEFAULT 0,
+                output_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+
+                input_cost_usd NUMERIC(12, 8) NOT NULL DEFAULT 0,
+                output_cost_usd NUMERIC(12, 8) NOT NULL DEFAULT 0,
+                total_cost_usd NUMERIC(12, 8) NOT NULL DEFAULT 0,
+
+                success BOOLEAN NOT NULL DEFAULT TRUE,
+                error_message TEXT,
+
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )
+            """)
+
         con.commit()
