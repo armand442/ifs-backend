@@ -5,7 +5,7 @@ from fastapi import FastAPI, Header, HTTPException, Depends
 
 from config import APP_NAME, APP_VERSION, AI_MODE, API_SECRET, MONTHLY_LIMIT, AI_ENABLED
 from database import init_db, get_connection
-from schemas import ChatIn, ChatOut, MessageOut
+from schemas import ChatIn, ChatOut, MessageOut, CostStatsOut, CostByDeviceOut
 from services import (
     LIMIT_MESSAGE,
     get_used,
@@ -18,6 +18,8 @@ from services import (
     CRISIS_MESSAGE,
     detect_crisis_risk,
     save_ai_usage_log,
+    get_global_cost_stats,
+    get_cost_stats_by_device,
 )
 
 from ai_service import generate_ai_reply
@@ -109,6 +111,23 @@ def usage(device_id: str):
         "limit": MONTHLY_LIMIT,
         "remaining": max(0, MONTHLY_LIMIT - used)
     }
+
+@app.get("/admin/costs", response_model=CostStatsOut, dependencies=[Depends(verify_api_key)])
+def admin_costs():
+    logger.info("Admin cost stats requested")
+    return get_global_cost_stats()
+
+
+@app.get("/admin/costs/by-device", response_model=list[CostByDeviceOut], dependencies=[Depends(verify_api_key)])
+def admin_costs_by_device(limit: int = 50):
+    if limit < 1:
+        limit = 1
+
+    if limit > 200:
+        limit = 200
+
+    logger.info(f"Admin cost stats by device requested | limit={limit}")
+    return get_cost_stats_by_device(limit)
 
 
 @app.get("/messages", response_model=list[MessageOut], dependencies=[Depends(verify_api_key)])

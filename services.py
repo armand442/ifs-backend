@@ -205,3 +205,67 @@ def detect_crisis_risk(text: str) -> bool:
     ]
 
     return any(keyword in t for keyword in crisis_keywords)
+
+
+def get_global_cost_stats():
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    COUNT(*) AS total_requests,
+                    COALESCE(SUM(input_tokens), 0) AS total_input_tokens,
+                    COALESCE(SUM(output_tokens), 0) AS total_output_tokens,
+                    COALESCE(SUM(total_tokens), 0) AS total_tokens,
+                    COALESCE(SUM(total_cost_usd), 0) AS total_cost_usd,
+                    COALESCE(SUM(
+                        CASE
+                            WHEN created_at::date = CURRENT_DATE
+                            THEN total_cost_usd
+                            ELSE 0
+                        END
+                    ), 0) AS today_cost_usd
+                FROM ai_usage_logs
+                WHERE success = TRUE
+            """)
+
+            row = cur.fetchone()
+
+    return {
+        "total_requests": int(row[0]),
+        "total_input_tokens": int(row[1]),
+        "total_output_tokens": int(row[2]),
+        "total_tokens": int(row[3]),
+        "total_cost_usd": float(row[4]),
+        "today_cost_usd": float(row[5]),
+    }
+
+
+def get_cost_stats_by_device(limit: int = 50):
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    device_id,
+                    COUNT(*) AS requests,
+                    COALESCE(SUM(total_tokens), 0) AS total_tokens,
+                    COALESCE(SUM(total_cost_usd), 0) AS total_cost_usd,
+                    MAX(created_at) AS last_used_at
+                FROM ai_usage_logs
+                WHERE success = TRUE
+                GROUP BY device_id
+                ORDER BY total_cost_usd DESC
+                LIMIT %s
+            """, (limit,))
+
+            rows = cur.fetchall()
+
+    return [
+        {
+            "device_id": row[0],
+            "requests": int(row[1]),
+            "total_tokens": int(row[2]),
+            "total_cost_usd": float(row[3]),
+            "last_used_at": row[4].isoformat() if row[4] else None,
+        }
+        for row in rows
+    ]
